@@ -1,0 +1,162 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[9]:
+
+
+from selenium import webdriver
+import requests
+from  bs4 import BeautifulSoup
+import numpy as np
+import pandas as pd
+import re
+import time
+from datetime import datetime, timedelta
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[10]:
+
+
+ndays = 12
+#pendent, extend for flexible dates, put a min function on the flights for a date, applies only for cheapest! otherwise
+Nights = 7
+m=ndays-Nights
+start = datetime(2020, 1, 17)
+dates = [start + timedelta(days=x) for x in range(0, ndays)]
+dates_string=[None]*ndays
+DoW=[None]*ndays
+for i in range(0, ndays):
+    dates_string[i] = dates[i].strftime('%Y-%m-%d')
+    DoW[i] = dates[i].weekday()
+
+
+# In[11]:
+
+
+SAO="/m/022pfm"
+FRA="/m/02z0j"
+BUE="/m/01ly5m"
+BGI="BGI"
+WDH="WDH"
+SIN="SIN"
+MAN="MAN"
+LON="/m/04jpl"
+SW="DE,SW"
+
+
+# In[12]:
+
+
+URL="https://www.google.com/flights?hl=LANGUAGE#flt=ORIGIN.DESTINATION.OUTBOUND*DESTINATION.ORIGIN.INBOUND;c:CURRENCY;e:1;a:Carrier*Carrier;sd:1;t:f"
+language="de"
+currency="EUR"
+#writing "" gives you the cheapest flight!!!, otherwise, write carriers!!
+Carrier=["EW","LH","DE"]
+OnD=[FRA,BGI]
+
+
+# In[13]:
+
+
+df=pd.DataFrame(columns=['DoW', 'Date', 'Stay', 'Marketing Carrier', 'Price', 'Stops',"Duration"])
+
+
+# In[14]:
+
+
+dct = {}
+if Carrier[0]!="":
+    for i in Carrier:
+        dct['%s' % i] = [None]*(m)
+        for j in range(m):
+            dct[i][j]=URL.replace("Carrier",i)
+            
+            dct[i][j]=dct[i][j].replace("LANGUAGE",language )
+            
+            dct[i][j]=dct[i][j].replace("CURRENCY",currency )
+            
+            dct[i][j]=dct[i][j].replace("OUTBOUND",dates_string[j])
+            dct[i][j]=dct[i][j].replace("INBOUND",dates_string[j+Nights])
+        
+            dct[i][j]=dct[i][j].replace("ORIGIN",OnD[0])
+            dct[i][j]=dct[i][j].replace("DESTINATION",OnD[1])
+    
+else:
+    for i in Carrier:
+        dct['%s' % i] = [None]*(m)
+        for j in range(m):
+            dct[i][j]=URL.replace(";a:Carrier*Carrier","")
+            
+            dct[i][j]=dct[i][j].replace("LANGUAGE",language )
+            
+            dct[i][j]=dct[i][j].replace("CURRENCY",currency )
+            
+            dct[i][j]=dct[i][j].replace("OUTBOUND",dates_string[j])
+            dct[i][j]=dct[i][j].replace("INBOUND",dates_string[j+Nights])
+        
+            dct[i][j]=dct[i][j].replace("ORIGIN",OnD[0])
+            dct[i][j]=dct[i][j].replace("DESTINATION",OnD[1])
+
+
+# In[16]:
+
+
+for carrier in dct:
+    for j in range(m):
+        #options = webdriver.ChromeOptions()
+        #options.add_argument('headless')
+        #options.add_argument('window-size=1200x600')
+        #driver=webdriver.Chrome(options=options)
+        driver=webdriver.Chrome()
+        driver.get(dct[carrier][j])
+        time.sleep(2)
+        operating=driver.find_elements_by_xpath('//div[@class="gws-flights-results__carriers gws-flights__ellipsize gws-flights__flex-box gws-flights__align-center flt-caption"]')
+        price=driver.find_elements_by_xpath('//div[@class="gws-flights-results__itinerary-price"]')
+        #stops = driver.find_elements_by_xpath('//div[@class="gws-flights-results__stops flt-subhead1Normal"]')
+        duration = driver.find_elements_by_xpath('//div[@class="gws-flights-results__duration flt-subhead1Normal"]')
+        if len(operating)>0:
+            #print(str(DoW[j])+ ", "+dates_string[j]+"; " +carrier + ", " + price[0].text[:-17].strip() + ", " + stops[0].text )
+            df=df.append({"DoW":DoW[j],'Date':dates_string[j],'Stay':Nights,'Marketing Carrier':operating[0].text ,'Price':price[0].text.strip(),'Stops':np.NaN,'Duration':duration[0].text}, ignore_index=True)
+        else:
+            #print(str(DoW[j])+ ", "+ dates_string[j]+ "; no price available " + carrier + " not available" )
+            df=df.append({"DoW":DoW[j],'Date':dates_string[j],'Stay':Nights,'Marketing Carrier': carrier,'Price':np.NaN,'Stops':np.NaN,'Duration':np.NaN}, ignore_index=True)
+        driver.quit()
+
+
+# In[8]:
+
+
+print(df)
+
+
+# In[10]:
+
+
+writer=pd.ExcelWriter("FRABGIFinal.xlsx")
+df.to_excel(writer)
+writer.save()
+
+
+# In[3]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
